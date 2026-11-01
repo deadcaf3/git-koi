@@ -16,7 +16,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   gin-rin glints, and the day's behavior sets the pace of the whole pond.
 - A lotus for each pull request merged into a public repository another account
   owns, up to nine, and a vermilion seal carved with two circling commas at the
-  pond's lower right, dated with the day the pond shows. The command's summary
+  pond's lower right, dated with the morning it was drawn. The command's summary
   and the preview page name the streak, the main language, the count of pull
   requests merged upstream, and the pace.
 - Four seasons, from the observation date or `--season`: cherry petals, a

@@ -13,9 +13,9 @@
 //! [`MAX_LOTUS_COUNT`]. The season, from the observation date in the northern
 //! hemisphere, brings cherry petals, a dragonfly by day, maple leaves, or ice and snow.
 //! [`PondTheme::Dark`] draws the same pond by moonlight, with fireflies outside winter.
-//! A vermilion seal signs the lower right corner, dated with the day the pond shows. A
-//! caption for the command's summary and the preview page names the streak, the main
-//! language, the merged upstream pull requests, and the pace.
+//! A vermilion seal signs the lower right corner, dated with the morning the pond was
+//! drawn. A caption for the command's summary and the preview page names the streak, the
+//! main language, the merged upstream pull requests, and the pace.
 //!
 //! The pond is [`POND_WIDTH_PIXELS`] by [`POND_HEIGHT_PIXELS`], twice its 400 by 240
 //! layout, so it stays sharp shown 400 wide on high-density screens. Every frame of the
@@ -143,7 +143,8 @@ pub struct PondScene {
     background: Canvas,
     surface: Canvas,
     night_glow: Canvas,
-    /// The day the pond shows, as inscribed beside the seal.
+    /// The morning the pond was drawn, the day after the one it shows, as inscribed
+    /// beside the seal.
     dated: String,
     outline: Mask,
 }
@@ -191,7 +192,14 @@ impl PondScene {
             background: draw_background(season, theme),
             surface: draw_surface(&pads, season),
             night_glow: draw_night_glow(&pads),
-            dated: koi_development.observed_on.format("%-d %b %Y").to_string(),
+            // The nightly render runs the morning after the observed day, so the seal
+            // carries the calendar date the pond was drawn.
+            dated: koi_development
+                .observed_on
+                .succ_opt()
+                .unwrap_or(koi_development.observed_on)
+                .format("%-d %b %Y")
+                .to_string(),
             outline,
         }
     }
@@ -1973,8 +1981,8 @@ fn caption_weight(tone: CaptionTone) -> TextWeight {
 }
 
 /// A vermilion seal at the pond's lower right, where a rakkan signs a painting, carved
-/// with a futatsu-domoe: two commas circling each other like the koi. The day the pond
-/// shows is inscribed beside it in small capitals, as a painting is dated next to its seal.
+/// with a futatsu-domoe: two commas circling each other like the koi. The morning the pond
+/// was drawn is inscribed beside it in small capitals, as a painting is dated by its seal.
 fn draw_seal(canvas: &mut Canvas, dated: &str, night: bool) {
     const SIZE: f32 = 16.0;
     const MARGIN: f32 = 8.0;

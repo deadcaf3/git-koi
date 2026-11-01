@@ -11,7 +11,7 @@ lily pond as a yin-yang pair, drawn smooth at twice their display size. Each
 pull request merged into a repository someone else owns blooms as a lotus. The
 season follows the date, with cherry petals, a dragonfly, maple leaves, or ice
 and snow, and the dark-theme pond is lit by the moon and fireflies. A
-vermilion seal, dated with the day the pond shows, signs the corner.
+vermilion seal, dated with the morning it was drawn, signs the corner.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/pond-dark.png" />
