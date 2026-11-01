@@ -13,7 +13,9 @@
 //! [`MAX_LOTUS_COUNT`]. The season, from the observation date in the northern
 //! hemisphere, brings cherry petals, a dragonfly by day, maple leaves, or ice and snow.
 //! [`PondTheme::Dark`] draws the same pond by moonlight, with fireflies outside winter.
-//! A caption strip names the streak, the main language, the lotus count, and the pace.
+//! A vermilion seal signs the lower right corner, dated with the day the pond shows. A
+//! caption for the command's summary and the preview page names the streak, the main
+//! language, the merged upstream pull requests, and the pace.
 //!
 //! The pond is [`POND_WIDTH_PIXELS`] by [`POND_HEIGHT_PIXELS`], twice its 400 by 240
 //! layout, so it stays sharp shown 400 wide on high-density screens. Every frame of the
@@ -31,14 +33,14 @@ use crate::koi::{
 };
 use crate::markings::calculate_streak_marks;
 use crate::raster::{
-    Blend, Canvas, Mask, Paint, Path, Point, Rgba, TextWeight, caption_font, hex, mix, smooth_open,
-    stroke_path, with_alpha,
+    Blend, Canvas, Mask, Paint, Path, Point, Rgba, TextWeight, caption_font, hex, inscription_font,
+    mix, smooth_open, stroke_path, with_alpha,
 };
 
 /// Device pixels per layout unit.
-const SCALE: f32 = 2.0;
+const SCALE: f32 = 2.5;
 const WIDTH: f32 = 400.0;
-const HEIGHT: f32 = 240.0;
+const HEIGHT: f32 = 208.0;
 /// The water ends here; the caption strip fills the rest.
 const POND_BOTTOM: f32 = 208.0;
 const CORNER_RADIUS: f32 = 14.0;
@@ -141,7 +143,8 @@ pub struct PondScene {
     background: Canvas,
     surface: Canvas,
     night_glow: Canvas,
-    caption_strip: Canvas,
+    /// The day the pond shows, as inscribed beside the seal.
+    dated: String,
     outline: Mask,
 }
 
@@ -173,7 +176,7 @@ impl PondScene {
         let blank = Canvas::new(width, height, SCALE);
         let outline = Mask::from_path(&outline_path, SCALE, &blank, 0);
         let pads = lay_out_pads(season, lotus_count);
-        let mut scene = Self {
+        Self {
             theme,
             season,
             motion: Motion::of(behavior),
@@ -188,11 +191,9 @@ impl PondScene {
             background: draw_background(season, theme),
             surface: draw_surface(&pads, season),
             night_glow: draw_night_glow(&pads),
-            caption_strip: blank,
+            dated: koi_development.observed_on.format("%-d %b %Y").to_string(),
             outline,
-        };
-        scene.caption_strip = draw_caption_strip(&caption_items, theme);
-        scene
+        }
     }
 
     /// The caption as plain text, items separated by middle dots.
@@ -251,11 +252,7 @@ pub fn render_pond_frame(pond_scene: &PondScene, frame_index: u32) -> PondFrame 
     if pond_scene.season == Season::Winter {
         draw_snow(&mut canvas, phase, night);
     }
-    canvas.copy_rows(
-        &pond_scene.caption_strip,
-        (POND_BOTTOM * SCALE) as usize,
-        POND_HEIGHT_PIXELS as usize,
-    );
+    draw_seal(&mut canvas, &pond_scene.dated, night);
     canvas.clip_to(&pond_scene.outline);
     PondFrame {
         width: POND_WIDTH_PIXELS,
@@ -1256,7 +1253,8 @@ fn lay_out_pads(season: Season, lotus_count: usize) -> Vec<Pad> {
         (36.0, 34.0, 15.0, 0.7),
         (356.0, 40.0, 17.0, 3.5),
         (70.0, 176.0, 13.0, 2.3),
-        (330.0, 182.0, 14.0, 5.0),
+        // Sits above the signature corner, so the date beside the seal stays clear.
+        (330.0, 164.0, 14.0, 5.0),
         (378.0, 140.0, 11.0, 1.3),
         (16.0, 112.0, 10.0, 4.1),
         (262.0, 194.0, 9.0, 0.3),
@@ -1900,9 +1898,9 @@ fn build_caption_items(
                 (count.to_string(), CaptionTone::Lotus),
                 (
                     if count == 1 {
-                        " PR in bloom"
+                        " PR merged upstream"
                     } else {
-                        " PRs in bloom"
+                        " PRs merged upstream"
                     }
                     .to_owned(),
                     CaptionTone::Plain,
@@ -1974,60 +1972,79 @@ fn caption_weight(tone: CaptionTone) -> TextWeight {
     }
 }
 
-fn draw_caption_strip(items: &[CaptionItem], theme: PondTheme) -> Canvas {
-    let mut canvas = Canvas::new(
-        POND_WIDTH_PIXELS as usize,
-        POND_HEIGHT_PIXELS as usize,
-        SCALE,
-    );
-    let dark = theme == PondTheme::Dark;
-    let mut strip = Path::new();
-    strip.rect(0.0, POND_BOTTOM, WIDTH, HEIGHT - POND_BOTTOM);
+/// A vermilion seal at the pond's lower right, where a rakkan signs a painting, carved
+/// with a futatsu-domoe: two commas circling each other like the koi. The day the pond
+/// shows is inscribed beside it in small capitals, as a painting is dated next to its seal.
+fn draw_seal(canvas: &mut Canvas, dated: &str, night: bool) {
+    const SIZE: f32 = 16.0;
+    const MARGIN: f32 = 8.0;
+    let left = WIDTH - MARGIN - SIZE;
+    let top = POND_BOTTOM - MARGIN - SIZE;
+    let center = (left + SIZE / 2.0, top + SIZE / 2.0);
+    let mut ground = Path::new();
+    ground.round_rect(left, top, SIZE, SIZE, 2.5);
     canvas.fill(
-        &strip,
-        &Paint::Solid(hex(if dark { 0x0c1322 } else { 0xfbf8f1 })),
+        &ground,
+        &Paint::Solid(hex(if night { 0xd8664f } else { 0xc8553d })),
         Blend::Over,
     );
-    let mut hairline = Path::new();
-    hairline.rect(0.0, POND_BOTTOM, WIDTH, 0.6);
-    canvas.fill(
-        &hairline,
-        &Paint::Solid(hex(if dark { 0x1f2b46 } else { 0xe7e0d0 })),
-        Blend::Over,
-    );
-    let tone_color = |tone: CaptionTone| {
-        hex(match (tone, dark) {
-            (CaptionTone::Plain, false) => 0x56606a,
-            (CaptionTone::Plain, true) => 0xa9b6d6,
-            (CaptionTone::Streak, false) => 0xc8553d,
-            (CaptionTone::Streak, true) => 0xffd27a,
-            (CaptionTone::Lotus, false) => 0xc94f7c,
-            (CaptionTone::Lotus, true) => 0xf4a9c6,
-        })
-    };
-    let font = caption_font();
-    let separator = " \u{b7} ";
-    let mut runs: Vec<(String, CaptionTone)> = Vec::new();
-    for (index, item) in items.iter().enumerate() {
-        if index > 0 {
-            runs.push((separator.to_owned(), CaptionTone::Plain));
-        }
-        runs.extend(item.parts.iter().cloned());
-    }
-    let total_width: f32 = runs
-        .iter()
-        .map(|(text, tone)| font.measure(text, caption_weight(*tone)))
-        .sum();
-    let mut pen_x = (WIDTH * SCALE - total_width) / 2.0;
-    let baseline = (POND_BOTTOM + (HEIGHT - POND_BOTTOM) / 2.0) * SCALE + 9.0;
-    for (text, tone) in &runs {
-        pen_x = canvas.draw_text(
-            text,
-            caption_weight(*tone),
-            pen_x,
-            baseline,
-            tone_color(*tone),
+    let carving = Paint::Solid(hex(if night { 0x0c1322 } else { 0xfbf8f1 }));
+    for half in 0..2 {
+        let start = half as f32 * TAU / 2.0;
+        let mut head = Path::new();
+        head.circle(add(center, (start.cos(), start.sin()), 2.75), 2.4);
+        canvas.fill(&head, &carving, Blend::Over);
+        // The tail spirals outward from the head and tapers to nothing over 170 degrees.
+        let edge = |t: f32, side: f32| {
+            let angle = start + t * 170f32.to_radians();
+            let radius = 2.75 + 3.0 * t + side * 2.4 * (1.0 - t).powf(0.8);
+            add(center, (angle.cos(), angle.sin()), radius)
+        };
+        let steps = 24;
+        let mut points: Vec<Point> = (0..=steps)
+            .map(|step| edge(step as f32 / steps as f32, 1.0))
+            .collect();
+        points.extend(
+            (0..=steps)
+                .rev()
+                .map(|step| edge(step as f32 / steps as f32, -1.0)),
         );
+        let mut tail = Path::new();
+        tail.polygon(&points);
+        canvas.fill(&tail, &carving, Blend::Over);
     }
-    canvas
+    // The date as an engraver would set it: small tracked capitals in diluted ink, about
+    // two thirds of the seal's height, so the seal stays the mark and the date a whisper.
+    let font = inscription_font();
+    let inscription = dated.to_uppercase();
+    let tracking = 2.0;
+    let letters: Vec<String> = inscription
+        .chars()
+        .map(|letter| letter.to_string())
+        .collect();
+    let text_width = letters
+        .iter()
+        .map(|letter| font.measure(letter, TextWeight::Regular))
+        .sum::<f32>()
+        + tracking * letters.len().saturating_sub(1) as f32;
+    let ink = if night {
+        with_alpha(hex(0xdfe6f5), 0.72)
+    } else {
+        with_alpha(hex(0xfbf8f1), 0.78)
+    };
+    let mut pen_x = (left - 6.0) * SCALE - text_width;
+    let baseline = (center.1 + 3.2) * SCALE;
+    for letter in &letters {
+        // A trace of shadow keeps the ink legible when a koi passes beneath it.
+        canvas.draw_text(
+            font,
+            letter,
+            TextWeight::Regular,
+            pen_x + 0.3 * SCALE,
+            baseline + 0.3 * SCALE,
+            [0.0, 0.0, 0.0, 0.12],
+        );
+        pen_x =
+            canvas.draw_text(font, letter, TextWeight::Regular, pen_x, baseline, ink) + tracking;
+    }
 }

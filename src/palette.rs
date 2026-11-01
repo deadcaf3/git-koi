@@ -31,7 +31,7 @@ impl Palette {
         let mut bins = vec![(0_u64, [0_u64; 3]); 1 << 15];
         for (frame_number, rgba) in frames.enumerate() {
             let offset = frame_number % 3;
-            for pixel in rgba.chunks_exact(4).skip(offset).step_by(3) {
+            for pixel in rgba.as_chunks::<4>().0.iter().skip(offset).step_by(3) {
                 if pixel[3] < 128 {
                     continue;
                 }

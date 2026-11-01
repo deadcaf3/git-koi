@@ -19,12 +19,12 @@ night:
    ```html
    <picture>
      <source media="(prefers-color-scheme: dark)" srcset="koi/koi-dark.gif" />
-     <img src="koi/koi-light.gif" width="400" alt="Two koi circling a lily pond" />
+     <img src="koi/koi-light.gif" width="500" alt="Two koi circling a lily pond" />
    </picture>
    ```
 
-   The GIFs are drawn at twice the pond's 400 by 240 layout, so `width="400"`
-   stays sharp on high-density screens.
+   The GIFs are drawn at 1000 by 520, two and a half times the pond's 400 by 208
+   layout, so `width="500"` stays sharp on high-density screens.
 
 4. Run the workflow once from the repository's Actions tab, so the first pond
    appears without waiting for midnight.

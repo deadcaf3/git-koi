@@ -10,12 +10,12 @@ This fork adds the pond, now the default: a white koi and a black koi circling a
 lily pond as a yin-yang pair, drawn smooth at twice their display size. Each
 pull request merged into a repository someone else owns blooms as a lotus. The
 season follows the date, with cherry petals, a dragonfly, maple leaves, or ice
-and snow, and the dark-theme pond is lit by the moon and fireflies. A caption
-names the streak, the main language, the lotus count, and the day's pace.
+and snow, and the dark-theme pond is lit by the moon and fireflies. A
+vermilion seal, dated with the day the pond shows, signs the corner.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/pond-dark.png" />
-  <img src="docs/pond-light.png" width="400" alt="A sample pond in summer: two koi circling under lily pads and four lotus, with a caption strip" />
+  <img src="docs/pond-light.png" width="500" alt="A sample pond in summer: two koi circling under lily pads and four lotus, with a dated seal" />
 </picture>
 
 The original pixel-art koi is still one option away, as `--style classic`:

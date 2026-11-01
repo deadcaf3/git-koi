@@ -101,27 +101,26 @@ fn lotus_beyond_the_cap_change_only_the_caption() {
         &fixture_scene(Some(MAX_LOTUS_COUNT + 6), Season::Summer, PondTheme::Light),
         0,
     );
-    let pond_bytes = POND_BOTTOM_ROW * POND_WIDTH_PIXELS as usize * 4;
-    assert_eq!(at_cap.rgba[..pond_bytes], beyond_cap.rgba[..pond_bytes]);
-    assert_ne!(at_cap.rgba[pond_bytes..], beyond_cap.rgba[pond_bytes..]);
+    assert_eq!(at_cap.rgba, beyond_cap.rgba);
+    assert_ne!(
+        fixture_scene(Some(MAX_LOTUS_COUNT), Season::Summer, PondTheme::Light).caption(),
+        fixture_scene(Some(MAX_LOTUS_COUNT + 6), Season::Summer, PondTheme::Light).caption()
+    );
     let without_lotus =
         render_pond_frame(&fixture_scene(Some(0), Season::Summer, PondTheme::Light), 0);
     let one_lotus = render_pond_frame(&fixture_scene(Some(1), Season::Summer, PondTheme::Light), 0);
-    assert_ne!(
-        without_lotus.rgba[..pond_bytes],
-        one_lotus.rgba[..pond_bytes]
-    );
+    assert_ne!(without_lotus.rgba, one_lotus.rgba);
 }
 
 #[test]
 fn the_caption_names_the_streak_language_lotus_and_pace() {
     assert_eq!(
         fixture_scene(Some(4), Season::Autumn, PondTheme::Light).caption(),
-        "1-week streak \u{b7} mostly Rust \u{b7} 4 PRs in bloom \u{b7} circling"
+        "1-week streak \u{b7} mostly Rust \u{b7} 4 PRs merged upstream \u{b7} circling"
     );
     assert_eq!(
         fixture_scene(Some(1), Season::Autumn, PondTheme::Light).caption(),
-        "1-week streak \u{b7} mostly Rust \u{b7} 1 PR in bloom \u{b7} circling"
+        "1-week streak \u{b7} mostly Rust \u{b7} 1 PR merged upstream \u{b7} circling"
     );
     assert_eq!(
         fixture_scene(None, Season::Autumn, PondTheme::Light).caption(),
@@ -162,7 +161,7 @@ fn a_caption_too_wide_for_the_strip_gives_up_the_pace_first() {
     .caption()
     .to_owned();
     assert!(!caption.contains("resting deep"), "{caption}");
-    assert!(caption.contains("12 PRs in bloom"), "{caption}");
+    assert!(caption.contains("12 PRs merged upstream"), "{caption}");
 }
 
 #[test]

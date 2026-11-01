@@ -34,7 +34,7 @@ Requires an authenticated GitHub CLI; in GitHub Actions, set GH_TOKEN to github.
 Render a collected SNAPSHOT into DIR in one STYLE, both swimming the behavior chosen for
 its observation date:
   pond (the default): two koi circling under lily pads, a lotus for each merged upstream
-    pull request, and a caption. koi-light.gif and koi-dark.gif are for GitHub's light
+    pull request, and a seal dated with the day. koi-light.gif and koi-dark.gif are for GitHub's light
     and dark themes, koi-light.png and koi-dark.png are stills, and preview.html shows
     them. SEASON is auto (the default, from the observation date in the northern
     hemisphere), spring, summer, autumn, or winter.

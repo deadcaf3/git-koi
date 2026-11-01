@@ -85,7 +85,7 @@ fn render_draws_the_pond_by_default_for_both_themes() {
     assert!(!preview_html.contains("<script"));
     let summary_line = String::from_utf8_lossy(&command_output.stdout);
     assert!(summary_line.contains("summer pond"));
-    assert!(summary_line.contains("3 PRs in bloom"));
+    assert!(summary_line.contains("3 PRs merged upstream"));
     assert!(summary_line.contains(&koi_development.observed_on.to_string()));
 }
 

@@ -725,12 +725,6 @@ impl Canvas {
         }
     }
 
-    /// Copy the rows from `top` to `bottom` (device pixels) from another canvas.
-    pub(crate) fn copy_rows(&mut self, source: &Canvas, top: usize, bottom: usize) {
-        let range = top * self.width..bottom.min(self.height) * self.width;
-        self.pixels[range.clone()].copy_from_slice(&source.pixels[range]);
-    }
-
     /// Weight every pixel's alpha by a mask, such as the pond's rounded outline.
     pub(crate) fn clip_to(&mut self, mask: &Mask) {
         for y in 0..self.height {
@@ -763,13 +757,13 @@ impl Canvas {
     /// both in device pixels. Returns the device x after the last glyph.
     pub(crate) fn draw_text(
         &mut self,
+        font: &CaptionFont,
         text: &str,
         weight: TextWeight,
         left: f32,
         baseline: f32,
         color: Rgba,
     ) -> f32 {
-        let font = caption_font();
         let mut pen_x = left;
         for character in text.chars() {
             let glyph = font.glyph(weight, character);
@@ -874,6 +868,15 @@ pub(crate) fn caption_font() -> &'static CaptionFont {
     FONT.get_or_init(|| {
         parse_caption_font(include_bytes!("../assets/caption-font.bin"))
             .expect("the built-in caption font is well formed")
+    })
+}
+
+/// The smaller face for the date inscribed beside the pond's seal.
+pub(crate) fn inscription_font() -> &'static CaptionFont {
+    static FONT: OnceLock<CaptionFont> = OnceLock::new();
+    FONT.get_or_init(|| {
+        parse_caption_font(include_bytes!("../assets/inscription-font.bin"))
+            .expect("the built-in inscription font is well formed")
     })
 }
 

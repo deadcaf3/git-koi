@@ -6,6 +6,10 @@ blits. Run it again only to change the font, size, or character set:
 
     python3 scripts/build_caption_font.py /path/to/Inter-Regular.otf /path/to/Inter-Medium.otf
 
+The seal's date inscription uses a second, smaller atlas, built the same way:
+
+    python3 scripts/build_caption_font.py REGULAR.otf MEDIUM.otf 22 inscription-font.bin
+
 Inter is licensed under the SIL Open Font License 1.1; see assets/OFL.txt.
 
 File layout, little-endian:
@@ -21,7 +25,8 @@ from pathlib import Path
 
 from PIL import ImageFont
 
-PIXEL_SIZE = 24  # 12 logical pixels at the pond's 2x export scale
+PIXEL_SIZE = 30  # 12 logical pixels at the pond's 2.5x export scale
+OUTPUT_NAME = "caption-font.bin"
 CHARACTERS = [chr(code) for code in range(0x20, 0x7F)] + ["·", "’"]
 
 
@@ -41,15 +46,19 @@ def encode_weight(font_path: str) -> bytes:
 
 
 def main() -> None:
-    if len(sys.argv) != 3:
+    global PIXEL_SIZE
+    if len(sys.argv) not in (3, 5):
         sys.exit(__doc__)
-    regular_path, medium_path = sys.argv[1:]
+    regular_path, medium_path = sys.argv[1:3]
+    output_name = OUTPUT_NAME
+    if len(sys.argv) == 5:
+        PIXEL_SIZE, output_name = int(sys.argv[3]), sys.argv[4]
     ascent, descent = ImageFont.truetype(regular_path, PIXEL_SIZE).getmetrics()
     output = bytearray(b"KOIF")
     output += struct.pack("<HHHHH", 1, PIXEL_SIZE, ascent, descent, 2)
     output += encode_weight(regular_path)
     output += encode_weight(medium_path)
-    output_path = Path(__file__).resolve().parent.parent / "assets" / "caption-font.bin"
+    output_path = Path(__file__).resolve().parent.parent / "assets" / output_name
     output_path.parent.mkdir(exist_ok=True)
     output_path.write_bytes(output)
     print(f"wrote {output_path} ({len(output)} bytes)")

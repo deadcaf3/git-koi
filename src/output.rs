@@ -283,7 +283,9 @@ pub fn encode_pond_gif(
     for pond_frame in pond_frames {
         let indices: Vec<u8> = pond_frame
             .rgba
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .enumerate()
             .map(|(pixel_index, pixel)| {
                 if pixel[3] < 128 {

@@ -9,14 +9,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - The pond style: a white koi and a black koi circling a lily pond, drawn smooth
-  at 800 by 480 for a 400-wide README image, in `koi-light.gif` and
+  at 1000 by 520 for a 500-wide README image, in `koi-light.gif` and
   `koi-dark.gif` for GitHub's light and dark themes, with stills and a preview.
   The pair takes its colors from the account's languages through the coat's
   pigment rules, growth sets its length, the streaks gild its fins and add
   gin-rin glints, and the day's behavior sets the pace of the whole pond.
 - A lotus for each pull request merged into a public repository another account
-  owns, up to nine, and a caption naming the streak, the main language, the
-  lotus count, and the pace.
+  owns, up to nine, and a vermilion seal carved with two circling commas at the
+  pond's lower right, dated with the day the pond shows. The command's summary
+  and the preview page name the streak, the main language, the count of pull
+  requests merged upstream, and the pace.
 - Four seasons, from the observation date or `--season`: cherry petals, a
   dragonfly and extra pads, maple leaves and yellowing pads, or ice and snow.
   The dark pond is lit by the moon, with fireflies outside winter.
