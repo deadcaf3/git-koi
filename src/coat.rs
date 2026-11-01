@@ -295,7 +295,7 @@ impl KoiBody {
 
 /// Koi pigments; each language color becomes the one nearest in hue.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Pigment {
+pub(crate) enum Pigment {
     /// Red.
     Beni,
     /// Black.
@@ -631,7 +631,7 @@ impl KoiCoat {
 }
 
 /// Sum each pigment's language shares, largest first; equal shares keep pigment order.
-fn calculate_pigment_shares(koi_development: &KoiDevelopment) -> Vec<(Pigment, f64)> {
+pub(crate) fn calculate_pigment_shares(koi_development: &KoiDevelopment) -> Vec<(Pigment, f64)> {
     let total_share: f64 = koi_development.language_shares.values().sum();
     let mut summed_shares = BTreeMap::new();
     for (language_name, language_share) in &koi_development.language_shares {
@@ -687,7 +687,7 @@ fn select_pigment(language_color: Option<LanguageColor>) -> Pigment {
 }
 
 /// How far a pigment has come in, from pale (0) to full color (1).
-fn calculate_pigment_development(pigment: Pigment, color_fraction: f64) -> f64 {
+pub(crate) fn calculate_pigment_development(pigment: Pigment, color_fraction: f64) -> f64 {
     let (start_fraction, span_fraction) = match pigment {
         Pigment::Sumi => (0.35, 0.6),
         _ => (0.05, 0.55),

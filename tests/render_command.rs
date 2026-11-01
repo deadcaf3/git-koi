@@ -8,13 +8,86 @@ use git_koi::coat::KoiBody;
 use git_koi::history::{AccountSnapshot, ContributionDay};
 use git_koi::koi::{KoiDevelopment, derive_koi_development};
 use git_koi::motion::frame_count;
-use git_koi::output::{encode_gif, encode_png};
+use git_koi::output::{encode_gif, encode_png, encode_pond_png};
+use git_koi::pond::{PondScene, PondTheme, Season, render_pond_frame};
 use git_koi::render::{KoiFrame, render_koi, render_swim_frame};
 
 const HISTORY_FIXTURE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/tests/fixtures/account-with-history.json"
 );
+
+#[test]
+fn render_draws_the_pond_by_default_for_both_themes() {
+    let mut account_snapshot = read_fixture_snapshot();
+    account_snapshot.upstream_merged_pull_requests = Some(3);
+    let scratch_directory = fresh_directory("render-pond");
+    let snapshot_path = scratch_directory.join("snapshot.json");
+    fs::write(
+        &snapshot_path,
+        serde_json::to_string(&account_snapshot).unwrap(),
+    )
+    .unwrap();
+    let output_directory = scratch_directory.join("koi");
+    let command_output = run_git_koi(&[
+        "render",
+        snapshot_path.to_str().unwrap(),
+        "--season=summer",
+        "--output-dir",
+        output_directory.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        command_output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&command_output.stderr)
+    );
+    let mut written: Vec<String> = fs::read_dir(&output_directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    written.sort();
+    assert_eq!(
+        written,
+        [
+            "koi-dark.gif",
+            "koi-dark.png",
+            "koi-light.gif",
+            "koi-light.png",
+            "preview.html"
+        ]
+    );
+    let koi_development = read_fixture_development();
+    let behavior = select_behavior(&koi_development);
+    for (pond_theme, theme_name) in [(PondTheme::Light, "light"), (PondTheme::Dark, "dark")] {
+        let pond_scene = PondScene::new(
+            &koi_development,
+            behavior,
+            Some(3),
+            Season::Summer,
+            pond_theme,
+        );
+        assert_eq!(
+            fs::read(output_directory.join(format!("koi-{theme_name}.png"))).unwrap(),
+            encode_pond_png(&render_pond_frame(&pond_scene, 0)).unwrap()
+        );
+        let gif_bytes = fs::read(output_directory.join(format!("koi-{theme_name}.gif"))).unwrap();
+        assert!(gif_bytes.starts_with(b"GIF89a"));
+        assert!(
+            gif_bytes.len() < 6_000_000,
+            "{theme_name} GIF is {} bytes",
+            gif_bytes.len()
+        );
+    }
+    let preview_html = fs::read_to_string(output_directory.join("preview.html")).unwrap();
+    assert!(preview_html.contains(r#"src="koi-light.gif""#));
+    assert!(preview_html.contains(r#"src="koi-dark.gif""#));
+    assert!(!preview_html.contains("<script"));
+    let summary_line = String::from_utf8_lossy(&command_output.stdout);
+    assert!(summary_line.contains("summer pond"));
+    assert!(summary_line.contains("3 PRs in bloom"));
+    assert!(summary_line.contains(&koi_development.observed_on.to_string()));
+}
 
 #[test]
 fn render_writes_the_days_loop_still_and_preview_as_the_renderer_draws_them() {
@@ -41,6 +114,8 @@ fn render_writes_the_days_loop_still_and_preview_as_the_renderer_draws_them() {
         snapshot_path.to_str().unwrap(),
         "--output-dir",
         output_directory.to_str().unwrap(),
+        "--style",
+        "classic",
     ]);
     assert_eq!(
         command_output.status.code(),
@@ -81,10 +156,11 @@ fn the_body_option_redraws_the_koi_in_that_body() {
     let command_output = run_git_koi(&[
         "render",
         HISTORY_FIXTURE,
-        "--output-dir",
-        output_directory.to_str().unwrap(),
         "--body",
         "black",
+        "--style=classic",
+        "--output-dir",
+        output_directory.to_str().unwrap(),
     ]);
     assert_eq!(command_output.status.code(), Some(0));
     let koi_development = read_fixture_development();
@@ -140,6 +216,39 @@ fn render_usage_errors_exit_two_and_help_exits_zero() {
             "--body",
             "red",
         ],
+        &[
+            "render",
+            HISTORY_FIXTURE,
+            "--output-dir",
+            "koi",
+            "--style",
+            "fancy",
+        ],
+        &[
+            "render",
+            HISTORY_FIXTURE,
+            "--output-dir",
+            "koi",
+            "--season",
+            "monsoon",
+        ],
+        &[
+            "render",
+            HISTORY_FIXTURE,
+            "--output-dir",
+            "koi",
+            "--output-dir",
+            "fish",
+        ],
+        &[
+            "render",
+            HISTORY_FIXTURE,
+            "--output-dir=",
+            "--style",
+            "pond",
+        ],
+        &["render", HISTORY_FIXTURE, "--season", "winter"],
+        &["render", HISTORY_FIXTURE, "--output-dir", "koi", "--style"],
     ] {
         let command_output = run_git_koi(invalid_arguments);
         assert_eq!(

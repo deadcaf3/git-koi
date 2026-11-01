@@ -1,10 +1,16 @@
-# Copy into your profile repository as .github/workflows/koi.yml, then embed
-# <img src="koi/koi.gif" width="256" alt="My koi"> in its README.md.
+# Copy into your profile repository as .github/workflows/koi.yml, replace
+# YOUR-USERNAME with the account that holds your git-koi fork, then embed the
+# pond in its README.md:
+#
+#   <picture>
+#     <source media="(prefers-color-scheme: dark)" srcset="koi/koi-dark.gif">
+#     <img src="koi/koi-light.gif" width="400" alt="Two koi circling a lily pond">
+#   </picture>
 name: Koi
 
 on:
   schedule:
-    # Just after midnight UTC, so the koi shows the day that just ended.
+    # Just after midnight UTC, so the pond shows the day that just ended.
     - cron: "20 0 * * *"
   workflow_dispatch:
   push:
@@ -20,19 +26,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: yalongwastaken/git-koi@v1
+      # Pin a full commit SHA instead of main to choose when you update.
+      - uses: YOUR-USERNAME/git-koi@main
         with:
-          body: white
+          style: pond
+          season: auto
           output-dir: koi
-      - name: Commit the koi if it changed
+      - name: Commit the pond if it changed
         shell: bash
         run: |
-          git add koi/koi.gif
+          git add koi/koi-light.gif koi/koi-dark.gif
           if git diff --cached --quiet; then
-            echo "The koi is unchanged; nothing to commit."
+            echo "The pond is unchanged; nothing to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit --quiet --message "koi: draw the day's koi"
+          git commit --quiet --message "koi: draw the day's pond"
           git push --quiet

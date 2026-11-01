@@ -5,6 +5,11 @@
 //! document of the same pixels, [`encode_gif`] for a behavior's loop, and
 //! [`encode_preview_html`] for a page that shows the GIF and PNG beside it on GitHub's
 //! light and dark page colors.
+//!
+//! The pond has its own encoders: [`encode_pond_gif`] dithers its smooth frames into
+//! one shared palette and stores each frame as only the pixels that changed,
+//! [`encode_pond_png`] keeps a frame's full color and soft corners, and
+//! [`encode_pond_preview_html`] shows the light and dark ponds on their page colors.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -12,6 +17,8 @@ use std::error::Error;
 use std::fmt;
 
 use crate::motion::FRAMES_PER_SECOND;
+use crate::palette::{Palette, TRANSPARENT_INDEX};
+use crate::pond::{POND_HEIGHT_PIXELS, POND_WIDTH_PIXELS, PondFrame};
 use crate::render::{FRAME_HEIGHT_PIXELS, FRAME_WIDTH_PIXELS, KoiFrame};
 
 /// Each native pixel becomes this many export pixels on each side.
@@ -235,11 +242,187 @@ fn calculate_elapsed_hundredths(frame_index: usize) -> u16 {
         .expect("loops last under ten minutes")
 }
 
+/// Encode the pond's loop as an animated GIF that repeats forever, showing each frame
+/// for `delay_centiseconds` hundredths of a second.
+///
+/// All frames share one 255-color palette built from a sample of them, and pixels are
+/// ordered-dithered into it so gradients stay smooth. Pixels under half opacity become
+/// transparent. After the first frame, each frame stores only the box around the
+/// pixels that changed, with unchanged pixels inside it transparent, and leaves the
+/// previous frame in place beneath it. Identical frames produce identical bytes.
+pub fn encode_pond_gif(
+    pond_frames: &[PondFrame],
+    delay_centiseconds: u16,
+) -> Result<Vec<u8>, GifEncodingError> {
+    if pond_frames.is_empty() {
+        return Err(GifEncodingError::NoFrames);
+    }
+    let (width, height) = (POND_WIDTH_PIXELS as usize, POND_HEIGHT_PIXELS as usize);
+    if let Some(frame_index) = pond_frames.iter().position(|pond_frame| {
+        pond_frame.width as usize != width
+            || pond_frame.height as usize != height
+            || pond_frame.rgba.len() != width * height * 4
+    }) {
+        return Err(GifEncodingError::WrongFrameSize { frame_index });
+    }
+    let sample_step = (pond_frames.len() / 30).max(1);
+    let mut palette = Palette::from_frames(
+        pond_frames
+            .iter()
+            .step_by(sample_step)
+            .map(|pond_frame| pond_frame.rgba.as_slice()),
+    );
+    let mut gif_encoder = gif::Encoder::new(
+        Vec::new(),
+        width as u16,
+        height as u16,
+        &palette.color_table(),
+    )?;
+    gif_encoder.set_repeat(gif::Repeat::Infinite)?;
+    let mut shown: Option<Vec<u8>> = None;
+    for pond_frame in pond_frames {
+        let indices: Vec<u8> = pond_frame
+            .rgba
+            .chunks_exact(4)
+            .enumerate()
+            .map(|(pixel_index, pixel)| {
+                if pixel[3] < 128 {
+                    TRANSPARENT_INDEX
+                } else {
+                    palette.index_at(
+                        [pixel[0], pixel[1], pixel[2]],
+                        pixel_index % width,
+                        pixel_index / width,
+                    )
+                }
+            })
+            .collect();
+        let frame = match &shown {
+            None => gif::Frame {
+                width: width as u16,
+                height: height as u16,
+                buffer: Cow::Owned(indices.clone()),
+                ..pond_gif_frame(delay_centiseconds)
+            },
+            Some(previous) => {
+                let changed = |pixel_index: usize| {
+                    indices[pixel_index] != previous[pixel_index]
+                        && indices[pixel_index] != TRANSPARENT_INDEX
+                };
+                let mut edges: Option<[usize; 4]> = None;
+                for pixel_index in (0..indices.len()).filter(|&pixel_index| changed(pixel_index)) {
+                    let (x, y) = (pixel_index % width, pixel_index / width);
+                    let [left, top, right, bottom] = edges.get_or_insert([x, y, x, y]);
+                    *left = (*left).min(x);
+                    *top = (*top).min(y);
+                    *right = (*right).max(x);
+                    *bottom = (*bottom).max(y);
+                }
+                let [left, top, right, bottom] = edges.unwrap_or([0, 0, 0, 0]);
+                let mut patch = Vec::with_capacity((right + 1 - left) * (bottom + 1 - top));
+                for y in top..=bottom {
+                    for x in left..=right {
+                        let pixel_index = y * width + x;
+                        patch.push(if changed(pixel_index) {
+                            indices[pixel_index]
+                        } else {
+                            TRANSPARENT_INDEX
+                        });
+                    }
+                }
+                gif::Frame {
+                    left: left as u16,
+                    top: top as u16,
+                    width: (right + 1 - left) as u16,
+                    height: (bottom + 1 - top) as u16,
+                    buffer: Cow::Owned(patch),
+                    ..pond_gif_frame(delay_centiseconds)
+                }
+            }
+        };
+        gif_encoder.write_frame(&frame)?;
+        let mut composited = shown.take().unwrap_or_else(|| indices.clone());
+        for (shown_index, &new_index) in composited.iter_mut().zip(&indices) {
+            if new_index != TRANSPARENT_INDEX {
+                *shown_index = new_index;
+            }
+        }
+        shown = Some(composited);
+    }
+    Ok(gif_encoder.into_inner()?)
+}
+
+fn pond_gif_frame(delay_centiseconds: u16) -> gif::Frame<'static> {
+    gif::Frame {
+        delay: delay_centiseconds,
+        dispose: gif::DisposalMethod::Keep,
+        transparent: Some(TRANSPARENT_INDEX),
+        ..gif::Frame::default()
+    }
+}
+
+/// Encode one pond frame as a PNG with its full color and soft corners.
+pub fn encode_pond_png(pond_frame: &PondFrame) -> Result<Vec<u8>, png::EncodingError> {
+    let mut png_bytes = Vec::new();
+    let mut png_encoder = png::Encoder::new(&mut png_bytes, pond_frame.width, pond_frame.height);
+    png_encoder.set_color(png::ColorType::Rgba);
+    png_encoder.set_depth(png::BitDepth::Eight);
+    png_encoder
+        .write_header()?
+        .write_image_data(&pond_frame.rgba)?;
+    Ok(png_bytes)
+}
+
+const POND_PREVIEW_HEAD: &str = r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>git-koi pond preview</title>
+<style>
+  body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  h1, h2 { margin: 0; font-size: 14px; font-weight: 600; }
+  header, section { display: grid; gap: 12px; padding: 16px; }
+  .light { background: #ffffff; color: #1f2328; }
+  .dark { background: #0d1117; color: #f0f6fc; }
+  img { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<header class="light"><h1>"#;
+const POND_PREVIEW_PANELS: &str = r#"</h1></header>
+<section class="light">
+<h2>GitHub light: koi-light.gif</h2>
+<img src="koi-light.gif" width="400" height="240" alt="Two koi circling in a pond by day">
+</section>
+<section class="dark">
+<h2>GitHub dark: koi-dark.gif</h2>
+<img src="koi-dark.gif" width="400" height="240" alt="Two koi circling in a pond by moonlight">
+</section>
+</body>
+</html>
+"#;
+
+/// Build a page that previews `koi-light.gif` and `koi-dark.gif`, read from beside it,
+/// each on its GitHub page color under the given caption. It loads no scripts.
+pub fn encode_pond_preview_html(caption: &str) -> String {
+    let escaped_caption = caption
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;");
+    format!("{POND_PREVIEW_HEAD}{escaped_caption}{POND_PREVIEW_PANELS}")
+}
+
 /// Why a GIF was not produced.
 #[derive(Debug)]
 pub enum GifEncodingError {
     /// No frames were given.
     NoFrames,
+    /// A pond frame is not the pond's size.
+    WrongFrameSize {
+        /// The frame, counted from zero.
+        frame_index: usize,
+    },
     /// A frame has more opaque colors than one GIF palette holds.
     TooManyColors {
         /// The frame, counted from zero.
@@ -258,6 +441,10 @@ impl fmt::Display for GifEncodingError {
     fn fmt(&self, output_formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoFrames => write!(output_formatter, "a GIF needs at least one frame"),
+            Self::WrongFrameSize { frame_index } => write!(
+                output_formatter,
+                "frame {frame_index} is not {POND_WIDTH_PIXELS} by {POND_HEIGHT_PIXELS} pixels"
+            ),
             Self::TooManyColors { frame_index } => write!(
                 output_formatter,
                 "frame {frame_index} has more than {GIF_COLOR_LIMIT} colors, more than one GIF palette holds"

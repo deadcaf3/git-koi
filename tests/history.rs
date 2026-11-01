@@ -368,9 +368,32 @@ fn snapshot_versions_enforce_their_own_history_fields() {
         .remove("language_colors");
     let mut colored_with_null_colors = snapshot_document.clone();
     colored_with_null_colors["language_colors"] = serde_json::Value::Null;
+    let mut colored_with_upstream_count = snapshot_document.clone();
+    colored_with_upstream_count["upstream_merged_pull_requests"] = serde_json::json!(3);
+    let mut upstream_without_count = snapshot_document.clone();
+    upstream_without_count["schema_version"] = serde_json::json!(4);
+    let mut upstream_with_null_count = snapshot_document.clone();
+    upstream_with_null_count["schema_version"] = serde_json::json!(4);
+    upstream_with_null_count["upstream_merged_pull_requests"] = serde_json::Value::Null;
+    let mut upstream_with_negative_count = snapshot_document.clone();
+    upstream_with_negative_count["schema_version"] = serde_json::json!(4);
+    upstream_with_negative_count["upstream_merged_pull_requests"] = serde_json::json!(-1);
+    let mut upstream_snapshot = snapshot_document.clone();
+    upstream_snapshot["schema_version"] = serde_json::json!(4);
+    upstream_snapshot["upstream_merged_pull_requests"] = serde_json::json!(3);
+    assert_eq!(
+        serde_json::from_value::<AccountSnapshot>(upstream_snapshot)
+            .unwrap()
+            .upstream_merged_pull_requests,
+        Some(3)
+    );
     let mut malformed_color = snapshot_document;
     malformed_color["language_colors"]["Rust"] = serde_json::json!("dea584");
     for incompatible_document in [
+        colored_with_upstream_count,
+        upstream_without_count,
+        upstream_with_null_count,
+        upstream_with_negative_count,
         legacy_with_history,
         dated_without_history,
         dated_with_null_history,

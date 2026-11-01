@@ -3,12 +3,12 @@ name = "git-koi"
 version = "1.0.2"
 edition = "2024"
 rust-version = "1.88"
-description = "Draw a pixel-art koi from a GitHub account's public activity, as a looping GIF for a profile README."
+description = "Draw koi from a GitHub account's public activity, as a pixel-art koi or a pair in a lily pond, in looping GIFs for a profile README."
 repository = "https://github.com/yalongwastaken/git-koi"
 documentation = "https://docs.rs/git-koi"
 readme = "README.md"
 license = "MIT"
-keywords = ["github", "profile", "koi", "pixel-art", "gif"]
+keywords = ["github", "profile", "koi", "pond", "gif"]
 categories = ["command-line-utilities", "visualization"]
 exclude = ["/.github", "/docs"]
 

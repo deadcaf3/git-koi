@@ -61,14 +61,17 @@ impl GraphqlClient for GhCli {
 const ACCOUNT_QUERY: &str =
     "query($login: String!) { user(login: $login) { databaseId createdAt } }";
 const REPOSITORY_FIELDS: &str = "nodes { databaseId visibility isFork primaryLanguage { name color } } pageInfo { hasNextPage endCursor }";
+const UPSTREAM_PULL_REQUEST_QUERY: &str = "query($searchQuery: String!) { \
+    search(query: $searchQuery, type: ISSUE, first: 1) { issueCount } }";
 const CALENDAR_QUERY: &str = "query($login: String!, $from: DateTime!, $to: DateTime!) { \
     user(login: $login) { contributionsCollection(from: $from, to: $to) { \
     contributionCalendar { weeks { contributionDays { date contributionCount } } } } } }";
 
 /// Collect one account's public snapshot: its public owned repositories, the public
 /// repositories GitHub counts it as contributing to, GitHub's color for each of their
-/// languages, and daily contribution counts from the day it was created through the
-/// latest date GitHub reports.
+/// languages, how many of its pull requests were merged into public repositories owned
+/// by someone else, and daily contribution counts from the day it was created through
+/// the latest date GitHub reports.
 ///
 /// GitHub limits each calendar request to a year, so the calendar is requested a year at
 /// a time, and any days GitHub leaves out of an answer are requested again.
@@ -84,6 +87,9 @@ pub fn collect_account_snapshot(
     login: &str,
     today: NaiveDate,
 ) -> Result<AccountSnapshot, CollectionError> {
+    if !is_github_login(login) {
+        return Err(CollectionError::InvalidLogin(login.to_owned()));
+    }
     let account_data = github.run_query(ACCOUNT_QUERY, &[("login", login)])?;
     let user = account_data
         .get("user")
@@ -114,6 +120,7 @@ pub fn collect_account_snapshot(
          includeUserRepositories: false, \
          contributionTypes: [COMMIT, ISSUE, PULL_REQUEST, PULL_REQUEST_REVIEW, REPOSITORY])",
     )?);
+    let upstream_merged_pull_requests = count_upstream_merged_pull_requests(github, login)?;
     let account_snapshot = AccountSnapshot {
         account_id,
         repositories,
@@ -121,10 +128,40 @@ pub fn collect_account_snapshot(
             github, login, created_on, today,
         )?),
         language_colors: Some(language_colors),
+        upstream_merged_pull_requests: Some(upstream_merged_pull_requests),
     };
     summarize_contributions(&account_snapshot).map_err(CollectionError::InvalidHistory)?;
     calculate_language_shares(&account_snapshot).map_err(CollectionError::ConflictingRepository)?;
     Ok(account_snapshot)
+}
+
+/// Count the account's merged pull requests in public repositories that its own account
+/// does not own, through GitHub's issue search. Repositories of organizations the
+/// account belongs to still count, since another owner holds them.
+fn count_upstream_merged_pull_requests(
+    github: &impl GraphqlClient,
+    login: &str,
+) -> Result<u64, CollectionError> {
+    let search_query = format!("is:pr is:merged is:public author:{login} -user:{login}");
+    let search_data = github.run_query(
+        UPSTREAM_PULL_REQUEST_QUERY,
+        &[("searchQuery", search_query.as_str())],
+    )?;
+    read_u64(read_field(&search_data, "search")?, "issueCount")
+}
+
+/// A GitHub login: one to 39 ASCII letters, digits, or single hyphens, never starting
+/// or ending with a hyphen. Checked before a login goes into a search query.
+fn is_github_login(login: &str) -> bool {
+    const MAX_LOGIN_LENGTH: usize = 39;
+    !login.is_empty()
+        && login.len() <= MAX_LOGIN_LENGTH
+        && login
+            .bytes()
+            .all(|login_byte| login_byte.is_ascii_alphanumeric() || login_byte == b'-')
+        && !login.starts_with('-')
+        && !login.ends_with('-')
+        && !login.contains("--")
 }
 
 /// Follow every page of one repository connection on the user, recording each primary
@@ -387,6 +424,8 @@ pub enum CollectionError {
     GhNotInstalled,
     /// `gh` ran and failed; carries its own message (authentication, rate limits, errors).
     GhFailed(String),
+    /// The login is not a valid GitHub login, so it is not sent anywhere.
+    InvalidLogin(String),
     /// GitHub has no account with this login.
     AccountNotFound(String),
     /// GitHub answered in a shape this version does not understand; carries the detail.
@@ -416,6 +455,10 @@ impl fmt::Display for CollectionError {
             Self::GhFailed(gh_message) => write!(
                 output_formatter,
                 "gh api failed: {gh_message}; check `gh auth status`, or set GH_TOKEN in CI"
+            ),
+            Self::InvalidLogin(login) => write!(
+                output_formatter,
+                "{login:?} is not a GitHub login; use letters, digits, and single hyphens"
             ),
             Self::AccountNotFound(login) => {
                 write!(output_formatter, "GitHub has no account named {login}")

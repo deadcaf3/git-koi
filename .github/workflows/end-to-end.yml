@@ -1,8 +1,8 @@
 name: End to end
 
 # Build git-koi from this checkout, collect the repository owner's real snapshot through
-# GitHub's API, render it, and attach the result. Nothing is committed. The Action's own
-# download path is proved by the release workflow instead, against each new release.
+# GitHub's API, render the pond, and attach the result. Nothing is committed. The
+# Action, which builds from its own source, is proved by the release workflow.
 on:
   pull_request:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
         run:
           ./target/release/git-koi collect "$GITHUB_REPOSITORY_OWNER" --output
           koi-snapshot.json
-      - name: Render the koi
+      - name: Render the pond
         run:
           ./target/release/git-koi render koi-snapshot.json --output-dir
           koi-output

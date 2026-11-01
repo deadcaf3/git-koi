@@ -43,6 +43,7 @@ fn collected_snapshot_covers_every_page_and_day_and_renders() {
         .map(|day| u64::from(synthetic_count(day)))
         .sum();
     assert_eq!(contribution_summary.total_contributions, expected_total);
+    assert_eq!(account_snapshot.upstream_merged_pull_requests, Some(7));
 
     let koi_frame = render_koi(
         &derive_koi_development(&account_snapshot).unwrap(),
@@ -53,6 +54,58 @@ fn collected_snapshot_covers_every_page_and_day_and_renders() {
             .as_rgba_bytes()
             .chunks(4)
             .any(|pixel| pixel[3] != 0)
+    );
+}
+
+#[test]
+fn upstream_pull_requests_are_searched_outside_the_accounts_own_repositories() {
+    let github = RecordedGitHub::new();
+    collect_account_snapshot(&github, LOGIN, date("2026-01-03")).unwrap();
+
+    let search_queries: Vec<String> = github
+        .requests
+        .borrow()
+        .iter()
+        .filter_map(|variables| variables.get("searchQuery").cloned())
+        .collect();
+    assert_eq!(
+        search_queries,
+        [format!(
+            "is:pr is:merged is:public author:{LOGIN} -user:{LOGIN}"
+        )]
+    );
+}
+
+#[test]
+fn a_login_that_could_change_the_search_is_refused_before_any_request() {
+    for invalid_login in [
+        "",
+        "-koi",
+        "koi-",
+        "ko--i",
+        "koi user",
+        "koi:repo",
+        "a".repeat(40).as_str(),
+    ] {
+        let github = RecordedGitHub::new();
+        assert_eq!(
+            collect_account_snapshot(&github, invalid_login, date("2026-01-03")),
+            Err(CollectionError::InvalidLogin(invalid_login.to_owned()))
+        );
+        assert!(github.requests.borrow().is_empty());
+    }
+}
+
+#[test]
+fn snapshots_round_trip_through_version_four() {
+    let github = RecordedGitHub::new();
+    let account_snapshot = collect_account_snapshot(&github, LOGIN, date("2026-01-03")).unwrap();
+    let snapshot_json = serde_json::to_value(&account_snapshot).unwrap();
+    assert_eq!(snapshot_json["schema_version"], json!(4));
+    assert_eq!(snapshot_json["upstream_merged_pull_requests"], json!(7));
+    assert_eq!(
+        serde_json::from_value::<git_koi::history::AccountSnapshot>(snapshot_json).unwrap(),
+        account_snapshot
     );
 }
 
@@ -307,6 +360,9 @@ impl GraphqlClient for RecordedGitHub {
             .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
             .collect();
         self.requests.borrow_mut().push(variables.clone());
+        if query.contains("search(") {
+            return Ok(json!({ "search": { "issueCount": 7 } }));
+        }
         if query.contains("contributionsCollection") {
             let window_date = |name: &str| date(&variables[name][..10]);
             return (self.calendar)(window_date("from"), window_date("to"));
